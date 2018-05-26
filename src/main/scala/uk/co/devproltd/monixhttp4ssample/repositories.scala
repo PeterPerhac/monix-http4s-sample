@@ -1,4 +1,4 @@
-package uk.co.devproltd.monixhttp4ssample.repository
+package uk.co.devproltd.monixhttp4ssample
 
 import cats.effect.Effect
 import doobie.free.connection.ConnectionIO
@@ -6,10 +6,10 @@ import doobie.implicits._
 import doobie.util.composite.Composite
 import doobie.util.fragment.Fragment.{const => fr}
 import doobie.util.meta.Meta
-import uk.co.devproltd.monixhttp4ssample.Car
-import language.higherKinds
 
-sealed abstract class SimpleRepository[F[_]: Effect, T: Composite, ID: Meta](
+import scala.language.higherKinds
+
+abstract class SimpleRepository[F[_]: Effect, T: Composite, ID: Meta](
   protected val tableName: String,
   protected val idColumnName: String) {
 

@@ -1,27 +1,31 @@
 package uk.co.devproltd.monixhttp4ssample
 
-import cats.effect.{Effect, IO}
+import cats.effect.Effect
 import cats.syntax.flatMap._
 import cats.syntax.functor._
+import doobie.implicits._
 import doobie.util.transactor.Transactor
 import doobie.util.transactor.Transactor.Aux
-import doobie.implicits._
 import fs2.StreamApp
 import io.circe.Json
 import io.circe.generic.JsonCodec
 import io.circe.syntax._
+import monix.eval.Task
+import monix.eval.instances.CatsEffectForTask
+import monix.execution.Scheduler
 import org.http4s.HttpService
 import org.http4s.circe._
 import org.http4s.dsl.Http4sDsl
 import org.http4s.server.blaze.BlazeBuilder
-import uk.co.devproltd.monixhttp4ssample.repository.CarRepository
-import language.higherKinds
+import uk.co.devproltd.monixhttp4ssample.ExecutionContexts._
 
-object CarServer extends StreamApp[IO] {
+import scala.concurrent.ExecutionContextExecutor
+import scala.language.higherKinds
 
-  import scala.concurrent.ExecutionContext.Implicits.global
+object CarServer extends StreamApp[Task] {
 
-  def stream(args: List[String], onShutdown: IO[Unit]): fs2.Stream[IO, StreamApp.ExitCode] = app[IO]
+  def stream(args: List[String], onShutdown: Task[Unit]): fs2.Stream[Task, StreamApp.ExitCode] = app[Task]
+
   def tx[F[_]: Effect]: Aux[F, Unit] =
     Transactor.fromDriverManager[F]("org.postgresql.Driver", "jdbc:postgresql:cars", "cars", "cars")
 
@@ -32,6 +36,8 @@ object CarServer extends StreamApp[IO] {
       .serve
 
 }
+
+@JsonCodec case class Car(id: Int, year: Int, make: String, model: String)
 
 class CarService[F[_]: Effect](carRepository: CarRepository[F], transactor: Transactor[F]) extends ServiceBase[F] {
 
@@ -60,3 +66,10 @@ abstract class ServiceBase[F[_]: Effect] extends Http4sDsl[F] {
   }
 
 }
+
+trait ExecutionContexts {
+  implicit val ec: ExecutionContextExecutor = scala.concurrent.ExecutionContext.global
+  implicit val taskEffect: Effect[Task] = new CatsEffectForTask()(Scheduler.global)
+}
+
+object ExecutionContexts extends ExecutionContexts
