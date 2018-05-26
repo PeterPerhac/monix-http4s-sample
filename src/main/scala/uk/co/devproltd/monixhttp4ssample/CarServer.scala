@@ -3,6 +3,7 @@ package uk.co.devproltd.monixhttp4ssample
 import cats.effect.Effect
 import cats.syntax.flatMap._
 import cats.syntax.functor._
+import doobie.free.connection.ConnectionIO
 import doobie.implicits._
 import doobie.util.transactor.Transactor
 import doobie.util.transactor.Transactor.Aux
@@ -12,15 +13,18 @@ import io.circe.generic.JsonCodec
 import io.circe.syntax._
 import monix.eval.Task
 import monix.eval.instances.CatsEffectForTask
-import monix.execution.Scheduler
 import org.http4s.HttpService
 import org.http4s.circe._
 import org.http4s.dsl.Http4sDsl
 import org.http4s.server.blaze.BlazeBuilder
-import uk.co.devproltd.monixhttp4ssample.ExecutionContexts._
 
-import scala.concurrent.ExecutionContextExecutor
 import scala.language.higherKinds
+import implicits._
+
+object implicits {
+  implicit val scheduler = monix.execution.Scheduler.global
+  implicit val taskEffect: Effect[Task] = new CatsEffectForTask()
+}
 
 object CarServer extends StreamApp[Task] {
 
@@ -32,14 +36,14 @@ object CarServer extends StreamApp[Task] {
   def app[F[_]: Effect]: fs2.Stream[F, StreamApp.ExitCode] =
     BlazeBuilder[F]
       .bindHttp(8080, "0.0.0.0")
-      .mountService(new CarService[F](new CarRepository[F], tx).service, "/")
+      .mountService(new CarService[F](CarRepository, tx).service, "/")
       .serve
 
 }
 
 @JsonCodec case class Car(id: Int, year: Int, make: String, model: String)
 
-class CarService[F[_]: Effect](carRepository: CarRepository[F], transactor: Transactor[F]) extends ServiceBase[F] {
+class CarService[F[_]: Effect](carRepository: CarRepository, transactor: Transactor[F]) extends ServiceBase[F] {
 
   val service: HttpService[F] = HttpService[F] {
     case GET -> Root / "cars" =>
@@ -67,9 +71,16 @@ abstract class ServiceBase[F[_]: Effect] extends Http4sDsl[F] {
 
 }
 
-trait ExecutionContexts {
-  implicit val ec: ExecutionContextExecutor = scala.concurrent.ExecutionContext.global
-  implicit val taskEffect: Effect[Task] = new CatsEffectForTask()(Scheduler.global)
+trait CarRepository {
+  def find(id: Int): ConnectionIO[Option[Car]] =
+    sql"select * from cars where id=$id".query[Car].option
+
+  def findAll: fs2.Stream[ConnectionIO, Car] =
+    sql"select * from cars".query[Car].stream
+
+  def delete(id: Int): ConnectionIO[Int] =
+    sql"delete from cars where id=$id".update.run
+
 }
 
-object ExecutionContexts extends ExecutionContexts
+object CarRepository extends CarRepository
