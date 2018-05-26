@@ -1,4 +1,4 @@
-# Monix Task, Play Framework, Postgres
+# Monix Task, Http4s, Doobie, Circe, Postgres
 
 The Postgres database can be created and pre-loaded with some data by running this simple command (provided you have docker running and docker-compose installed).
 
